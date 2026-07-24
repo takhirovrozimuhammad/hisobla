@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Hisobla</title>
+<style>
+  /* ============================================================
+     HISOBLA — Premium iOS-style Expense Tracker
+     Architecture:
+       1. Design tokens (light/dark adaptive)
+       2. Base / layout
+       3. Header, summary cards, toolbar
+       4. Expense list + cards
+       5. Bottom sheets (detail, form, confirm)
+       6. FAB, empty state, toast
+       7. Animations
+       8. Responsive
+     ============================================================ */
+
+  :root {
+    --accent: #34C759;
+    --accent-dim: rgba(52, 199, 89, 0.14);
+    --success: #30D158;
+    --danger: #FF453A;
+    --danger-dim: rgba(255, 69, 58, 0.12);
+
+    --radius-lg: 32px;
+    --radius-md: 20px;
+    --radius-sm: 14px;
+
+    --ease-spring: cubic-bezier(0.34, 1.32, 0.4, 1);
+    --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+    --t-fast: 180ms;
+    --t-base: 250ms;
+
+    color-scheme: light dark;
+  }
+
+  /* Light mode tokens */
+  html[data-theme="light"] {
+    --bg: #F2F2F7;
+    --bg-elevated: #FFFFFF;
+    --glass: rgba(255, 255, 255, 0.72);
+    --glass-strong: rgba(255, 255, 255, 0.86);
+    --border: rgba(60, 60, 67, 0.10);
+    --text-primary: #1C1C1E;
+    --text-secondary: rgba(60, 60, 67, 0.6);
+    --text-tertiary: rgba(60, 60, 67, 0.35);
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.05);
+    --shadow-sheet: 0 -8px 40px rgba(0,0,0,0.14);
+    --overlay: rgba(0,0,0,0.28);
+    --input-bg: rgba(118, 118, 128, 0.08);
+  }
+
+  /* Dark mode tokens */
+  html[data-theme="dark"] {
+    --bg: #000000;
+    --bg-elevated: #1C1C1E;
+    --glass: rgba(28, 28, 30, 0.72);
+    --glass-strong: rgba(36, 36, 38, 0.9);
+    --border: rgba(255, 255, 255, 0.09);
+    --text-primary: #F2F2F7;
+    --text-secondary: rgba(235, 235, 245, 0.6);
+    --text-tertiary: rgba(235, 235, 245, 0.35);
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.4);
+    --shadow-sheet: 0 -8px 40px rgba(0,0,0,0.5);
+    --overlay: rgba(0,0,0,0.5);
+    --input-bg: rgba(118, 118, 128, 0.24);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: contain;
+    height: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    transition: background var(--t-base) var(--ease-standard), color var(--t-base) var(--ease-standard);
+  }
+
+  button, input {
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    outline: none;
+    background: none;
+    color: inherit;
+  }
+
+  button { cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  ::selection { background: var(--accent-dim); }
+
+  .app {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 18px calc(120px + env(safe-area-inset-bottom)) 18px;
+    position: relative;
+  }
+
+  /* ---------- Header ---------- */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(20px + env(safe-area-inset-top)) 2px 8px 2px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(155deg, var(--accent), #28a745);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .theme-toggle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: transform var(--t-fast) var(--ease-standard), background var(--t-fast);
+  }
+  .theme-toggle:active { transform: scale(0.9); }
+  .theme-toggle svg { width: 19px; height: 19px; }
+
+  /* ---------- Summary cards ---------- */
+  .summary-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 14px 0 18px 0;
+  }
+
+  .summary-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 16px 14px 16px;
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .summary-label {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .summary-value {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+
+  .summary-card.accent .summary-value { color: var(--accent); }
+
+  /* ---------- Toolbar: search + sort ---------- */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .search-wrap {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    padding: 0 12px;
+    height: 42px;
+  }
+
+  .search-wrap svg {
+    width: 17px;
+    height: 17px;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    flex: 1;
+    height: 100%;
+    padding: 0 0 0 8px;
+    font-size: 15.5px;
+    color: var(--text-primary);
+  }
+
+  .search-input::placeholder { color: var(--text-tertiary); }
+
+  .sort-select-wrap {
+    position: relative;
+    height: 42px;
+  }
+
+  .sort-select {
+    height: 100%;
+    padding: 0 30px 0 14px;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    max-width: 132px;
+  }
+
+  .sort-select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--text-tertiary);
+    border-bottom: 2px solid var(--text-tertiary);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* ---------- Expense list ---------- */
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .expense-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    animation: cardIn var(--t-base) var(--ease-spring) both;
+    transition: transform var(--t-fast) var(--ease-standard), background var(--t-fast);
+    text-align: left;
+    width: 100%;
+  }
+
+  .expense-card:active { transform: scale(0.985); }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .expense-name {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .expense-total {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Empty state ---------- */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 90px 20px 40px 20px;
+    color: var(--text-secondary);
+  }
+
+  .empty-emoji {
+    font-size: 46px;
+    margin-bottom: 14px;
+    opacity: 0.85;
+  }
+
+  .empty-text {
+    font-size: 15.5px;
+    font-weight: 500;
+    max-width: 240px;
+    line-height: 1.4;
+  }
+
+  /* ---------- FAB ---------- */
+  .fab {
+    position: fixed;
+    right: max(22px, calc(50vw - 320px + 22px));
+    bottom: calc(28px + env(safe-area-inset-bottom));
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: var(--glass-strong);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(52,199,89,0.28), 0 2px 8px rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 40;
+    transition: transform var(--t-fast) var(--ease-spring);
+  }
+  .fab:active { transform: scale(0.9); }
+  .fab svg { width: 26px; height: 26px; color: var(--accent); }
+
+  /* ============================================================
+     Bottom sheets
+     ============================================================ */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-base) var(--ease-standard);
+    z-index: 50;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 640px;
+    margin: 0 auto;
+    background: var(--glass-strong);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    box-shadow: var(--shadow-sheet);
+    padding: 10px 20px calc(24px + env(safe-area-inset-bottom)) 20px;
+    transform: translateY(105%);
+    transition: transform var(--t-base) var(--ease-spring);
+    z-index: 51;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .sheet.open { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--text-tertiary);
+    opacity: 0.5;
+    margin: 6px auto 16px auto;
+  }
+
+  .sheet-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 18px;
+  }
+
+  /* Detail rows */
+  .detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 2px;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-row:last-of-type { border-bottom: none; }
+
+  .detail-label {
+    font-size: 14.5px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .detail-value {
+    font-size: 15.5px;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .detail-value.big {
+    font-size: 19px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .sheet-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .btn {
+    flex: 1;
+    height: 50px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: transform var(--t-fast) var(--ease-standard), opacity var(--t-fast);
+  }
+  .btn:active { transform: scale(0.97); opacity: 0.85; }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--input-bg); color: var(--text-primary); }
+  .btn-danger { background: var(--danger-dim); color: var(--danger); }
+  .btn-danger-solid { background: var(--danger); color: #fff; }
+
+  /* Form */
+  .field { margin-bottom: 16px; }
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 7px;
+    display: block;
+  }
+
+  .field-input {
+    width: 100%;
+    height: 50px;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    padding: 0 14px;
+    font-size: 16.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: box-shadow var(--t-fast);
+  }
+  .field-input:focus { box-shadow: 0 0 0 2px var(--accent); }
+  .field-input.error { box-shadow: 0 0 0 2px var(--danger); }
+
+  .field-error {
+    font-size: 12.5px;
+    color: var(--danger);
+    margin-top: 6px;
+    display: none;
+    font-weight: 500;
+  }
+  .field-error.show { display: block; }
+
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+
+  .total-preview {
+    background: var(--accent-dim);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .total-preview-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .total-preview-value {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .confirm-text {
+    font-size: 15.5px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin-bottom: 22px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(100px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(20px);
+    background: var(--glass-strong);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-base) var(--ease-standard), transform var(--t-base) var(--ease-standard);
+    z-index: 60;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  /* Responsive tweaks */
+  @media (max-width: 380px) {
+    .summary-value { font-size: 17px; }
+    .sort-select { max-width: 108px; }
+  }
+
+  @media (min-width: 720px) {
+    .app { padding-left: 0; padding-right: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ===== Header ===== -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark">H</div>
+      <div class="brand-name">Hisobla</div>
+    </div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Mavzuni almashtirish">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+    </button>
+  </header>
+
+  <!-- ===== Summary ===== -->
+  <section class="summary-row">
+    <div class="summary-card accent">
+      <div class="summary-label">Umumiy summa</div>
+      <div class="summary-value" id="totalSum">0 so'm</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Mahsulotlar soni</div>
+      <div class="summary-value" id="totalCount">0</div>
+    </div>
+  </section>
+
+  <!-- ===== Toolbar ===== -->
+  <section class="toolbar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="search-input" id="searchInput" placeholder="Qidirish..." autocomplete="off">
+    </div>
+    <div class="sort-select-wrap">
+      <select class="sort-select" id="sortSelect">
+        <option value="newest">Yangi</option>
+        <option value="oldest">Eski</option>
+        <option value="highest">Qimmat</option>
+        <option value="lowest">Arzon</option>
+        <option value="az">A-Z</option>
+        <option value="za">Z-A</option>
+      </select>
+    </div>
+  </section>
+
+  <!-- ===== List / Empty state ===== -->
+  <section class="list" id="list"></section>
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="empty-emoji">📦</div>
+    <div class="empty-text">Hozircha hech qanday harajat mavjud emas.</div>
+  </div>
+</div>
+
+<!-- ===== FAB ===== -->
+<button class="fab" id="fabAdd" aria-label="Qo'shish">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- ===== Overlay ===== -->
+<div class="overlay" id="overlay"></div>
+
+<!-- ===== Detail Sheet ===== -->
+<div class="sheet" id="detailSheet" role="dialog" aria-modal="true">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="detailName">—</div>
+  <div class="detail-row"><span class="detail-label">Narxi</span><span class="detail-value" id="detailPrice">—</span></div>
+  <div class="detail-row"><span class="detail-label">Miqdori</span><span class="detail-value" id="detailQty">—</span></div>
+  <div class="detail-row"><span class="detail-label">Jami</span><span class="detail-value big" id="detailTotal">—</span></div>
+  <div class="detail-row"><span class="detail-label">Yaratilgan</span><span class="detail-value" id="detailCreated">—</span></div>
+  <div class="detail-row"><span class="detail-label">Yangilangan</span><span class="detail-value" id="detailUpdated">—</span></div>
+  <div class="sheet-actions">
+    <button class="btn btn-secondary" id="editBtn">✏️ Tahrirlash</button>
+    <button class="btn btn-danger" id="deleteBtn">🗑 O'chirish</button>
+  </div>
+</div>
+
+<!-- ===== Form Sheet (Add/Edit) ===== -->
+<div class="sheet" id="formSheet" role="dialog" aria-modal="true">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="formTitle">Yangi harajat</div>
+
+  <div class="field">
+    <label class="field-label" for="nameInput">Mahsulot nomi</label>
+    <input type="text" class="field-input" id="nameInput" placeholder="Masalan: Restoran" autocomplete="off">
+    <div class="field-error" id="nameError">Mahsulot nomini kiriting</div>
+  </div>
+
+  <div class="field-row">
+    <div class="field">
+      <label class="field-label" for="priceInput">Narxi</label>
+      <input type="text" inputmode="numeric" class="field-input" id="priceInput" placeholder="0">
+      <div class="field-error" id="priceError">Narx 0 dan katta bo'lishi kerak</div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="qtyInput">Miqdori</label>
+      <input type="text" inputmode="numeric" class="field-input" id="qtyInput" placeholder="1">
+      <div class="field-error" id="qtyError">Miqdor 0 dan katta bo'lishi kerak</div>
+    </div>
+  </div>
+
+  <div class="total-preview">
+    <span class="total-preview-label">Jami summa</span>
+    <span class="total-preview-value" id="formTotalPreview">0 so'm</span>
+  </div>
+
+  <div class="sheet-actions">
+    <button class="btn btn-secondary" id="cancelFormBtn">Bekor qilish</button>
+    <button class="btn btn-primary" id="saveFormBtn">Saqlash</button>
+  </div>
+</div>
+
+<!-- ===== Confirm Delete Sheet ===== -->
+<div class="sheet" id="confirmSheet" role="dialog" aria-modal="true">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">O'chirish</div>
+  <p class="confirm-text">Haqiqatan ham ushbu mahsulotni o'chirmoqchimisiz?</p>
+  <div class="sheet-actions">
+    <button class="btn btn-secondary" id="cancelDeleteBtn">Bekor qilish</button>
+    <button class="btn btn-danger-solid" id="confirmDeleteBtn">Ha, o'chirish</button>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     1. STATE & PERSISTENCE
+     ============================================================ */
+  const STORAGE_KEY = "hisobla_expenses_v1";
+  const THEME_KEY = "hisobla_theme_v1";
+
+  /** @type {Array<{id:string,name:string,price:number,qty:number,total:number,createdAt:number,updatedAt:number}>} */
+  let expenses = loadExpenses();
+  let activeId = null;          // id currently shown in detail/edit sheets
+  let editingId = null;         // non-null when form sheet is in edit mode
+  let pendingDeleteId = null;
+
+  function loadExpenses() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error("Failed to load expenses", e);
+      return [];
+    }
+  }
+
+  function saveExpenses() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+    } catch (e) {
+      console.error("Failed to save expenses", e);
+    }
+  }
+
+  /* ============================================================
+     2. THEME
+     ============================================================ */
+  const root = document.documentElement;
+  const themeToggle = document.getElementById("themeToggle");
+  const themeIcon = document.getElementById("themeIcon");
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  const SUN_PATH = '<circle cx="12" cy="12" r="4.6"/><line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/>';
+  const MOON_PATH = '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z"/>';
+
+  function applyTheme(theme) {
+    root.setAttribute("data-theme", theme);
+    themeIcon.innerHTML = theme === "dark" ? SUN_PATH : MOON_PATH;
+  }
+
+  function initTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") {
+      applyTheme(saved);
+    } else {
+      applyTheme(mediaQuery.matches ? "dark" : "light");
+    }
+  }
+
+  mediaQuery.addEventListener("change", (e) => {
+    // Only follow system if user hasn't manually overridden
+    if (!localStorage.getItem(THEME_KEY)) {
+      applyTheme(e.matches ? "dark" : "light");
+    }
+  });
+
+  themeToggle.addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(next);
+    localStorage.setItem(THEME_KEY, next);
+  });
+
+  initTheme();
+
+  /* ============================================================
+     3. NUMBER FORMATTING (spaces every 3 digits)
+     ============================================================ */
+  function formatWithSpaces(digitsStr) {
+    if (!digitsStr) return "";
+    return digitsStr.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  }
+
+  function stripToDigits(str) {
+    return (str || "").replace(/[^\d]/g, "");
+  }
+
+  function formatMoney(n) {
+    const rounded = Math.round(n || 0);
+    return formatWithSpaces(String(rounded)) + " so'm";
+  }
+
+  function formatDate(ts) {
+    const d = new Date(ts);
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}.${mm}.${yyyy}, ${hh}:${min}`;
+  }
+
+  /* ============================================================
+     4. LIVE-FORMATTING PRICE INPUT
+     ============================================================ */
+  const priceInput = document.getElementById("priceInput");
+  priceInput.addEventListener("input", () => {
+    const caretFromEnd = priceInput.value.length - priceInput.selectionStart;
+    const digits = stripToDigits(priceInput.value);
+    priceInput.value = formatWithSpaces(digits);
+    const pos = Math.max(0, priceInput.value.length - caretFromEnd);
+    priceInput.setSelectionRange(pos, pos);
+    updateFormTotalPreview();
+    clearFieldError("price");
+  });
+
+  const qtyInput = document.getElementById("qtyInput");
+  qtyInput.addEventListener("input", () => {
+    qtyInput.value = stripToDigits(qtyInput.value);
+    updateFormTotalPreview();
+    clearFieldError("qty");
+  });
+
+  const nameInput = document.getElementById("nameInput");
+  nameInput.addEventListener("input", () => clearFieldError("name"));
+
+  function updateFormTotalPreview() {
+    const price = Number(stripToDigits(priceInput.value)) || 0;
+    const qty = Number(stripToDigits(qtyInput.value)) || 0;
+    document.getElementById("formTotalPreview").textContent = formatMoney(price * qty);
+  }
+
+  /* ============================================================
+     5. RENDERING LIST
+     ============================================================ */
+  const listEl = document.getElementById("list");
+  const emptyStateEl = document.getElementById("emptyState");
+  const searchInput = document.getElementById("searchInput");
+  const sortSelect = document.getElementById("sortSelect");
+
+  let searchDebounce = null;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(render, 80);
+  });
+  sortSelect.addEventListener("change", render);
+
+  function getFilteredSorted() {
+    const q = searchInput.value.trim().toLowerCase();
+    let arr = expenses.filter(e => !q || e.name.toLowerCase().includes(q));
+
+    const sortMode = sortSelect.value;
+    arr = arr.slice();
+    switch (sortMode) {
+      case "newest": arr.sort((a, b) => b.createdAt - a.createdAt); break;
+      case "oldest": arr.sort((a, b) => a.createdAt - b.createdAt); break;
+      case "highest": arr.sort((a, b) => b.total - a.total); break;
+      case "lowest": arr.sort((a, b) => a.total - b.total); break;
+      case "az": arr.sort((a, b) => a.name.localeCompare(b.name, "uz")); break;
+      case "za": arr.sort((a, b) => b.name.localeCompare(a.name, "uz")); break;
+    }
+    return arr;
+  }
+
+  function render() {
+    const arr = getFilteredSorted();
+
+    // Summary always reflects ALL expenses (not filtered)
+    const totalSum = expenses.reduce((s, e) => s + e.total, 0);
+    document.getElementById("totalSum").textContent = formatMoney(totalSum);
+    document.getElementById("totalCount").textContent = String(expenses.length);
+
+    if (expenses.length === 0) {
+      listEl.style.display = "none";
+      emptyStateEl.style.display = "flex";
+      listEl.innerHTML = "";
+      return;
+    }
+
+    listEl.style.display = "flex";
+    emptyStateEl.style.display = "none";
+
+    // Minimal DOM update: rebuild only when needed via documentFragment
+    const frag = document.createDocumentFragment();
+    arr.forEach((e) => {
+      const card = document.createElement("button");
+      card.className = "expense-card";
+      card.type = "button";
+      card.dataset.id = e.id;
+      card.innerHTML =
+        `<span class="expense-name"></span><span class="expense-total"></span>`;
+      card.querySelector(".expense-name").textContent = e.name;
+      card.querySelector(".expense-total").textContent = formatMoney(e.total);
+      card.addEventListener("click", () => openDetail(e.id));
+      frag.appendChild(card);
+    });
+    listEl.innerHTML = "";
+    listEl.appendChild(frag);
+  }
+
+  /* ============================================================
+     6. SHEET / OVERLAY CONTROLS
+     ============================================================ */
+  const overlay = document.getElementById("overlay");
+  const detailSheet = document.getElementById("detailSheet");
+  const formSheet = document.getElementById("formSheet");
+  const confirmSheet = document.getElementById("confirmSheet");
+  const allSheets = [detailSheet, formSheet, confirmSheet];
+
+  function openSheet(sheet) {
+    allSheets.forEach(s => s.classList.remove("open"));
+    overlay.classList.add("open");
+    // force reflow for consistent transition when switching sheets
+    requestAnimationFrame(() => sheet.classList.add("open"));
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeAllSheets() {
+    allSheets.forEach(s => s.classList.remove("open"));
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+    activeId = null;
+    editingId = null;
+    pendingDeleteId = null;
+  }
+
+  overlay.addEventListener("click", closeAllSheets);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAllSheets();
+  });
+
+  /* Swipe-down-to-close for sheets */
+  allSheets.forEach((sheet) => {
+    let startY = 0, currentY = 0, dragging = false;
+    const handle = sheet.querySelector(".sheet-handle");
+
+    function onStart(y) {
+      dragging = true;
+      startY = y;
+      sheet.style.transition = "none";
+    }
+    function onMove(y) {
+      if (!dragging) return;
+      currentY = Math.max(0, y - startY);
+      sheet.style.transform = `translateY(${currentY}px)`;
+    }
+    function onEnd() {
+      if (!dragging) return;
+      dragging = false;
+      sheet.style.transition = "";
+      if (currentY > 110) {
+        closeAllSheets();
+      }
+      sheet.style.transform = "";
+      currentY = 0;
+    }
+
+    handle.addEventListener("touchstart", (e) => onStart(e.touches[0].clientY), { passive: true });
+    handle.addEventListener("touchmove", (e) => onMove(e.touches[0].clientY), { passive: true });
+    handle.addEventListener("touchend", onEnd);
+
+    handle.addEventListener("mousedown", (e) => { onStart(e.clientY); document.body.style.userSelect = "none"; });
+    document.addEventListener("mousemove", (e) => onMove(e.clientY));
+    document.addEventListener("mouseup", () => { onEnd(); document.body.style.userSelect = ""; });
+  });
+
+  /* ============================================================
+     7. DETAIL SHEET
+     ============================================================ */
+  function openDetail(id) {
+    const e = expenses.find(x => x.id === id);
+    if (!e) return;
+    activeId = id;
+    document.getElementById("detailName").textContent = e.name;
+    document.getElementById("detailPrice").textContent = formatMoney(e.price);
+    document.getElementById("detailQty").textContent = String(e.qty);
+    document.getElementById("detailTotal").textContent = formatMoney(e.total);
+    document.getElementById("detailCreated").textContent = formatDate(e.createdAt);
+    document.getElementById("detailUpdated").textContent = formatDate(e.updatedAt);
+    openSheet(detailSheet);
+  }
+
+  document.getElementById("editBtn").addEventListener("click", () => {
+    if (!activeId) return;
+    openForm(activeId);
+  });
+
+  document.getElementById("deleteBtn").addEventListener("click", () => {
+    if (!activeId) return;
+    pendingDeleteId = activeId;
+    openSheet(confirmSheet);
+  });
+
+  /* ============================================================
+     8. FORM SHEET (ADD / EDIT)
+     ============================================================ */
+  const formTitle = document.getElementById("formTitle");
+  const saveFormBtn = document.getElementById("saveFormBtn");
+  const cancelFormBtn = document.getElementById("cancelFormBtn");
+  const fabAdd = document.getElementById("fabAdd");
+
+  function openForm(id) {
+    editingId = id || null;
+    const e = id ? expenses.find(x => x.id === id) : null;
+
+    formTitle.textContent = e ? "Tahrirlash" : "Yangi harajat";
+    nameInput.value = e ? e.name : "";
+    priceInput.value = e ? formatWithSpaces(String(e.price)) : "";
+    qtyInput.value = e ? String(e.qty) : "";
+    clearFieldError("name"); clearFieldError("price"); clearFieldError("qty");
+    updateFormTotalPreview();
+    openSheet(formSheet);
+    setTimeout(() => nameInput.focus({ preventScroll: true }), 260);
+  }
+
+  fabAdd.addEventListener("click", () => openForm(null));
+  cancelFormBtn.addEventListener("click", closeAllSheets);
+
+  function setFieldError(field, hasError) {
+    document.getElementById(field + "Input").classList.toggle("error", hasError);
+    document.getElementById(field + "Error").classList.toggle("show", hasError);
+  }
+  function clearFieldError(field) { setFieldError(field, false); }
+
+  function validateForm() {
+    const name = nameInput.value.trim();
+    const price = Number(stripToDigits(priceInput.value));
+    const qty = Number(stripToDigits(qtyInput.value));
+
+    let valid = true;
+    if (!name) { setFieldError("name", true); valid = false; } else { setFieldError("name", false); }
+    if (!(price > 0)) { setFieldError("price", true); valid = false; } else { setFieldError("price", false); }
+    if (!(qty > 0)) { setFieldError("qty", true); valid = false; } else { setFieldError("qty", false); }
+
+    return valid ? { name, price, qty } : null;
+  }
+
+  saveFormBtn.addEventListener("click", () => {
+    const data = validateForm();
+    if (!data) return;
+
+    const now = Date.now();
+    if (editingId) {
+      const e = expenses.find(x => x.id === editingId);
+      if (e) {
+        e.name = data.name;
+        e.price = data.price;
+        e.qty = data.qty;
+        e.total = data.price * data.qty;
+        e.updatedAt = now;
+      }
+      showToast("Yangilandi");
+    } else {
+      expenses.push({
+        id: genId(),
+        name: data.name,
+        price: data.price,
+        qty: data.qty,
+        total: data.price * data.qty,
+        createdAt: now,
+        updatedAt: now
+      });
+      showToast("Qo'shildi");
+    }
+
+    saveExpenses();
+    render();
+    closeAllSheets();
+  });
+
+  function genId() {
+    return "e_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  /* ============================================================
+     9. DELETE CONFIRMATION
+     ============================================================ */
+  document.getElementById("cancelDeleteBtn").addEventListener("click", closeAllSheets);
+  document.getElementById("confirmDeleteBtn").addEventListener("click", () => {
+    if (!pendingDeleteId) return;
+    expenses = expenses.filter(e => e.id !== pendingDeleteId);
+    saveExpenses();
+    render();
+    showToast("O'chirildi");
+    closeAllSheets();
+  });
+
+  /* ============================================================
+     10. TOAST
+     ============================================================ */
+  let toastTimer = null;
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+  }
+
+  /* ============================================================
+     11. INIT
+     ============================================================ */
+  render();
+})();
+</script>
+</body>
+</html>
